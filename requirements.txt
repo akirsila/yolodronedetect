@@ -1,0 +1,8 @@
+ultralytics
+cvzone
+opencv-python
+scipy
+lap
+torch
+torchvision
+deep_sort_realtime
