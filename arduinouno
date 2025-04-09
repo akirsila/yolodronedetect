@@ -1,0 +1,75 @@
+#include <Servo.h>
+
+Servo x, y;
+const int width = 640, height = 480;  // Videoresoluution koko
+int xpos = 90, ypos = 90;            // Alkupiste molemmille servoille
+
+const int triggerPin = 11;          // Lähtö pinni 11
+const int lockThreshold = 30;       // Kuinka tarkasti keskitys vaaditaan (suurempi arvo helpottaa lukitusta)
+bool locked = false;                // Lukitusstatus
+
+void setup() {
+    Serial.begin(9600);
+    x.attach(9);
+    y.attach(10);
+
+    pinMode(triggerPin, OUTPUT);
+    digitalWrite(triggerPin, LOW);  // Alustetaan laukaisu pois päältä
+
+    x.write(xpos);
+    y.write(ypos);
+}
+
+const int angle = 1; // Servo-askeleen koko
+unsigned long lastTriggerTime = 0;  // Estää liian tiheän laukaisun
+const int triggerCooldown = 2000;   // Vähimmäisväli laukaisujen välillä (ms)
+
+void loop() {
+    if (Serial.available() > 0) {
+        int x_mid = -1, y_mid = -1;  // Oletusarvo, joka estää virhetulkinnan
+
+        if (Serial.read() == 'X') {
+            x_mid = Serial.parseInt();
+            if (Serial.read() == 'Y')
+                y_mid = Serial.parseInt();
+        }
+
+        // Jos koordinaatit ovat kunnossa, ohjaa servoja
+        if (x_mid != -1 && y_mid != -1) {
+            if (x_mid > width / 2 + 30) xpos -= angle;  
+            if (x_mid < width / 2 - 30) xpos += angle;  
+            if (y_mid > height / 2 + 30) ypos -= angle;  
+            if (y_mid < height / 2 - 30) ypos += angle;  
+
+            // Servo position limits
+            xpos = constrain(xpos, 0, 180);
+            ypos = constrain(ypos, 0, 180);
+
+            x.write(xpos);
+            y.write(ypos);
+
+            // 🔒 LUKITUS JA LAUKAISU
+            if (abs(x_mid - width / 2) < lockThreshold &&
+                abs(y_mid - height / 2) < lockThreshold) {
+
+                if (!locked && millis() - lastTriggerTime > triggerCooldown) {
+                    Serial.println("🔒 Lukitus saavutettu! 🔥 Laukaisu tapahtuu!");
+                    digitalWrite(triggerPin, HIGH);  // Laukaise signaali
+                    delay(500);                     // Pidä signaali hetken ajan päällä
+                    digitalWrite(triggerPin, LOW);  // Palaa normaalitilaan
+                    locked = true;                 // Estää jatkuvan laukaisun
+                    lastTriggerTime = millis();     // Päivittää viimeisen laukaisuajan
+                }
+            } else {
+                locked = false;  // Palauttaa laukaisun mahdollisuuden
+            }
+        }
+
+        // Debug-tulostus testaukseen
+        Serial.print("Xpos: "); Serial.print(xpos);
+        Serial.print("\tYpos: "); Serial.print(ypos);
+        Serial.print("\tLukitus: "); Serial.println(locked ? "Kyllä" : "Ei");
+
+        delay(30);  // Viive tasaisempaan liikkeeseen
+    }
+}
